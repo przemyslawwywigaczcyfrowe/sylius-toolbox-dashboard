@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sylius Toolbox — Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- ========== EKRAN LOGOWANIA ========== -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">ST</div>
+      <h1>Sylius Toolbox</h1>
+      <p class="login-subtitle">Panel zarządzania i analizy</p>
+      <div class="login-fields">
+        <input type="url" id="cfg-url" placeholder="Supabase URL (https://xxx.supabase.co)">
+        <input type="text" id="cfg-key" placeholder="Klucz anon (eyJhbG...)">
+        <button id="cfg-connect" class="btn-primary btn-full">Połącz z bazą</button>
+      </div>
+      <p id="cfg-error" class="login-error hidden"></p>
+    </div>
+  </div>
+
+  <!-- ========== GŁÓWNY LAYOUT ========== -->
+  <div id="app" class="hidden">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo">ST</div>
+        <span>Sylius Toolbox</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-tab="overview">
+          <span class="nav-icon">📊</span> Przegląd
+        </a>
+        <a href="#" class="nav-item" data-tab="users">
+          <span class="nav-icon">👥</span> Użytkownicy
+        </a>
+        <a href="#" class="nav-item" data-tab="tools">
+          <span class="nav-icon">🔧</span> Narzędzia
+        </a>
+        <a href="#" class="nav-item" data-tab="patterns">
+          <span class="nav-icon">🕐</span> Wzorce czasowe
+        </a>
+        <a href="#" class="nav-item" data-tab="feed">
+          <span class="nav-icon">📋</span> Live feed
+        </a>
+        <a href="#" class="nav-item" data-tab="roi">
+          <span class="nav-icon">💰</span> ROI i raporty
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button id="btn-disconnect" class="btn-link">Rozłącz</button>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main">
+      <!-- Top bar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="sidebar-toggle" class="sidebar-toggle">☰</button>
+          <h2 id="page-title">Przegląd</h2>
+        </div>
+        <div class="topbar-right">
+          <select id="date-range" class="select-range">
+            <option value="7">Ostatnie 7 dni</option>
+            <option value="30" selected>Ostatnie 30 dni</option>
+            <option value="90">Ostatnie 90 dni</option>
+            <option value="365">Ostatni rok</option>
+            <option value="0">Wszystko</option>
+          </select>
+          <button id="btn-refresh" class="btn-secondary">⟳ Odśwież</button>
+          <span id="last-refresh" class="topbar-meta"></span>
+        </div>
+      </header>
+
+      <div class="content">
+
+        <!-- ===== TAB: PRZEGLĄD ===== -->
+        <section id="tab-overview" class="tab-content">
+          <!-- KPI -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <span class="kpi-value" id="kpi-total-uses">—</span>
+              <span class="kpi-label">Łączne użycia</span>
+              <span class="kpi-trend" id="kpi-total-uses-trend"></span>
+            </div>
+            <div class="kpi-card accent-purple">
+              <span class="kpi-value" id="kpi-time-saved">—</span>
+              <span class="kpi-label">Zaoszczędzony czas</span>
+              <span class="kpi-trend" id="kpi-time-saved-trend"></span>
+            </div>
+            <div class="kpi-card accent-blue">
+              <span class="kpi-value" id="kpi-active-users">—</span>
+              <span class="kpi-label">Aktywni użytkownicy</span>
+              <span class="kpi-trend" id="kpi-active-users-trend"></span>
+            </div>
+            <div class="kpi-card accent-amber">
+              <span class="kpi-value" id="kpi-success-rate">—</span>
+              <span class="kpi-label">Wskaźnik sukcesu</span>
+            </div>
+            <div class="kpi-card accent-red">
+              <span class="kpi-value" id="kpi-error-count">—</span>
+              <span class="kpi-label">Błędy</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-value" id="kpi-avg-latency">—</span>
+              <span class="kpi-label">Śr. czas odpowiedzi</span>
+            </div>
+          </div>
+
+          <!-- Wykresy główne -->
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3>Użycia w czasie</h3>
+              <canvas id="chart-usage-over-time"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>Zaoszczędzony czas (minuty)</h3>
+              <canvas id="chart-time-saved"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>Podział wg narzędzia</h3>
+              <canvas id="chart-by-tool"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>Sukces / błąd / cofnięcie</h3>
+              <canvas id="chart-success-rate"></canvas>
+            </div>
+          </div>
+
+          <!-- Szybki przegląd użytkowników -->
+          <div class="card">
+            <h3>Najaktywniejszy użytkownicy</h3>
+            <canvas id="chart-top-users" height="200"></canvas>
+          </div>
+        </section>
+
+        <!-- ===== TAB: UŻYTKOWNICY ===== -->
+        <section id="tab-users" class="tab-content hidden">
+          <div class="card">
+            <div class="card-header">
+              <h3>Wszyscy użytkownicy</h3>
+              <div class="card-actions">
+                <input type="text" id="user-search" placeholder="Szukaj użytkownika..." class="input-search">
+                <button id="btn-export-users" class="btn-secondary">📥 Eksport CSV</button>
+              </div>
+            </div>
+            <table class="data-table" id="users-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="sortable" data-sort="name">Użytkownik ↕</th>
+                  <th class="sortable" data-sort="uses">Użycia ↕</th>
+                  <th class="sortable" data-sort="time">Czas zaoszczędzony ↕</th>
+                  <th>Sukces %</th>
+                  <th>Narzędzia</th>
+                  <th class="sortable" data-sort="last">Ostatnia aktywność ↕</th>
+                  <th>Szczegóły</th>
+                </tr>
+              </thead>
+              <tbody id="users-tbody"></tbody>
+            </table>
+          </div>
+
+          <!-- Adopcja użytkowników -->
+          <div class="card">
+            <h3>Adopcja wtyczki w organizacji</h3>
+            <canvas id="chart-adoption" height="200"></canvas>
+          </div>
+
+          <div class="card">
+            <h3>Kolejność dołączania użytkowników</h3>
+            <table class="data-table">
+              <thead>
+                <tr><th>#</th><th>Użytkownik</th><th>Email</th><th>Pierwsza aktywność</th><th>Pierwsze narzędzie</th></tr>
+              </thead>
+              <tbody id="adoption-tbody"></tbody>
+            </table>
+          </div>
+
+          <!-- Panel szczegółów użytkownika -->
+          <div id="user-detail" class="card hidden">
+            <div class="card-header">
+              <h3 id="user-detail-name">Szczegóły użytkownika</h3>
+              <button id="btn-close-user-detail" class="btn-link">✕ Zamknij</button>
+            </div>
+            <div class="user-detail-grid">
+              <div class="user-stat">
+                <span class="user-stat-value" id="ud-uses">—</span>
+                <span class="user-stat-label">Użycia</span>
+              </div>
+              <div class="user-stat">
+                <span class="user-stat-value" id="ud-time">—</span>
+                <span class="user-stat-label">Zaoszczędzony czas</span>
+              </div>
+              <div class="user-stat">
+                <span class="user-stat-value" id="ud-success">—</span>
+                <span class="user-stat-label">Sukces %</span>
+              </div>
+              <div class="user-stat">
+                <span class="user-stat-value" id="ud-fav-tool">—</span>
+                <span class="user-stat-label">Ulubione narzędzie</span>
+              </div>
+            </div>
+            <h4>Aktywność w czasie</h4>
+            <canvas id="chart-user-detail-timeline" height="150"></canvas>
+            <h4 style="margin-top:16px">Ostatnie akcje</h4>
+            <table class="data-table">
+              <thead>
+                <tr><th>Data</th><th>Narzędzie</th><th>Akcja</th><th>Status</th><th>Produkt</th></tr>
+              </thead>
+              <tbody id="ud-events-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ===== TAB: NARZĘDZIA ===== -->
+        <section id="tab-tools" class="tab-content hidden">
+          <div id="tools-cards-grid" class="tools-cards-grid"></div>
+
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3>Popularność narzędzi w czasie</h3>
+              <canvas id="chart-tools-over-time"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>Średni czas odpowiedzi webhook (ms)</h3>
+              <canvas id="chart-tools-latency"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Najczęściej edytowane produkty</h3>
+            <table class="data-table">
+              <thead>
+                <tr><th>#</th><th>Produkt</th><th>URL</th><th>Użycia</th><th>Ostatnio</th></tr>
+              </thead>
+              <tbody id="products-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ===== TAB: WZORCE CZASOWE ===== -->
+        <section id="tab-patterns" class="tab-content hidden">
+          <div class="card">
+            <h3>Heatmapa aktywności (godzina × dzień tygodnia)</h3>
+            <div id="heatmap-container" class="heatmap-container"></div>
+          </div>
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3>Aktywność wg godziny</h3>
+              <canvas id="chart-by-hour"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>Aktywność wg dnia tygodnia</h3>
+              <canvas id="chart-by-weekday"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== TAB: LIVE FEED ===== -->
+        <section id="tab-feed" class="tab-content hidden">
+          <div class="card">
+            <div class="card-header">
+              <h3>Ostatnie zdarzenia</h3>
+              <div class="card-actions">
+                <label><input type="checkbox" id="feed-auto-refresh" checked> Auto-odświeżanie (30s)</label>
+                <button id="btn-export-feed" class="btn-secondary">📥 Eksport CSV</button>
+              </div>
+            </div>
+            <table class="data-table" id="feed-table">
+              <thead>
+                <tr>
+                  <th>Data i godzina</th>
+                  <th>Użytkownik</th>
+                  <th>Narzędzie</th>
+                  <th>Akcja</th>
+                  <th>Status</th>
+                  <th>Produkt</th>
+                  <th>Pola</th>
+                  <th>Latency</th>
+                  <th>Wersja</th>
+                </tr>
+              </thead>
+              <tbody id="feed-tbody"></tbody>
+            </table>
+            <div class="feed-pagination">
+              <button id="feed-prev" class="btn-secondary" disabled>← Poprzednie</button>
+              <span id="feed-page-info">Strona 1</span>
+              <button id="feed-next" class="btn-secondary">Następne →</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== TAB: ROI I RAPORTY ===== -->
+        <section id="tab-roi" class="tab-content hidden">
+          <div class="card">
+            <h3>Kalkulator ROI</h3>
+            <div class="roi-grid">
+              <div class="roi-input-group">
+                <label>Średnia stawka godzinowa brutto (PLN)</label>
+                <input type="number" id="roi-hourly-rate" value="100" min="1" class="roi-input">
+              </div>
+              <div class="roi-input-group">
+                <label>Liczba roboczych dni w miesiącu</label>
+                <input type="number" id="roi-work-days" value="21" min="1" class="roi-input">
+              </div>
+            </div>
+            <div class="roi-results-grid">
+              <div class="roi-result-card">
+                <span class="roi-result-value" id="roi-total-hours">—</span>
+                <span class="roi-result-label">Zaoszczędzonych godzin</span>
+              </div>
+              <div class="roi-result-card accent-green">
+                <span class="roi-result-value" id="roi-total-money">—</span>
+                <span class="roi-result-label">Zaoszczędzonych PLN</span>
+              </div>
+              <div class="roi-result-card">
+                <span class="roi-result-value" id="roi-monthly-avg">—</span>
+                <span class="roi-result-label">Średnio PLN / miesiąc</span>
+              </div>
+              <div class="roi-result-card">
+                <span class="roi-result-value" id="roi-fte-equivalent">—</span>
+                <span class="roi-result-label">Ekwiwalent etatów</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3>Oszczędności w czasie (PLN)</h3>
+              <canvas id="chart-roi-over-time"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>Oszczędności wg narzędzia (PLN)</h3>
+              <canvas id="chart-roi-by-tool"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Podsumowanie raportowe</h3>
+              <button id="btn-export-report" class="btn-primary">📥 Eksport pełnego raportu CSV</button>
+            </div>
+            <div id="report-summary"></div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="lib/supabase-client.js"></script>
+  <script src="lib/charts.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

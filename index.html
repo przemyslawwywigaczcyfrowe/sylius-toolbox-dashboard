@@ -215,7 +215,7 @@
             <h4 style="margin-top:16px">Ostatnie akcje</h4>
             <table class="data-table">
               <thead>
-                <tr><th>Data</th><th>Narzędzie</th><th>Akcja</th><th>Status</th><th>Produkt</th></tr>
+                <tr><th>Data</th><th>Narzędzie</th><th>Akcja</th><th>Status</th><th>Produkt</th><th>Szczegóły</th></tr>
               </thead>
               <tbody id="ud-events-tbody"></tbody>
             </table>
@@ -288,10 +288,35 @@
                   <th>Pola</th>
                   <th>Latency</th>
                   <th>Wersja</th>
+                  <th>Szczegóły</th>
                 </tr>
               </thead>
               <tbody id="feed-tbody"></tbody>
             </table>
+
+            <!-- Modal szczegółów zdarzenia -->
+            <div id="event-detail-modal" class="modal-overlay hidden">
+              <div class="modal-card">
+                <div class="modal-header">
+                  <h3 id="modal-title">Szczegóły zdarzenia</h3>
+                  <button id="btn-close-modal" class="btn-link">✕ Zamknij</button>
+                </div>
+                <div class="modal-body">
+                  <div class="modal-section">
+                    <h4>Dane wysłane (request)</h4>
+                    <pre id="modal-request" class="json-pre">—</pre>
+                  </div>
+                  <div class="modal-section">
+                    <h4>Dane odebrane (response)</h4>
+                    <pre id="modal-response" class="json-pre">—</pre>
+                  </div>
+                  <div class="modal-section" id="modal-error-section" style="display:none">
+                    <h4>Błąd</h4>
+                    <pre id="modal-error" class="json-pre error-pre">—</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="feed-pagination">
               <button id="feed-prev" class="btn-secondary" disabled>← Poprzednie</button>
               <span id="feed-page-info">Strona 1</span>

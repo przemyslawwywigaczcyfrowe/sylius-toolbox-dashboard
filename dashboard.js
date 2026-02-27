@@ -442,14 +442,24 @@ function showUserDetail(email) {
   var tbody = document.getElementById('ud-events-tbody');
   tbody.innerHTML = '';
   user.events.slice(0, 30).forEach(function(e) {
+    var hasMetadata = e.metadata && (e.metadata.request_payload || e.metadata.response_payload || e.metadata.error_message);
     var tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + new Date(e.created_at).toLocaleString('pl-PL') + '</td>' +
       '<td>' + esc(e.tool_name || e.tool_id || '') + '</td>' +
       '<td>' + esc(e.action) + '</td>' +
       '<td><span class="status-badge ' + (e.status || '') + '">' + esc(e.status || '') + '</span></td>' +
-      '<td>' + esc(e.product_name || '') + '</td>';
+      '<td>' + esc(e.product_name || '') + '</td>' +
+      '<td>' + (hasMetadata ? '<button class="btn-detail btn-ud-detail">Pokaż</button>' : '—') + '</td>';
+    // Store event reference on the row for detail button
+    tr._eventData = e;
     tbody.appendChild(tr);
+  });
+  // Bind detail buttons
+  tbody.querySelectorAll('.btn-ud-detail').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      showEventDetailModal(this.closest('tr')._eventData);
+    });
   });
 
   // Scroll to detail
@@ -641,7 +651,8 @@ function renderFeed() {
 
   var tbody = document.getElementById('feed-tbody');
   tbody.innerHTML = '';
-  page.forEach(function(e) {
+  page.forEach(function(e, idx) {
+    var hasMetadata = e.metadata && (e.metadata.request_payload || e.metadata.response_payload || e.metadata.error_message);
     var tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + new Date(e.created_at).toLocaleString('pl-PL') + '</td>' +
@@ -652,8 +663,17 @@ function renderFeed() {
       '<td>' + esc(e.product_name || '') + '</td>' +
       '<td>' + (e.fields_updated || 0) + '</td>' +
       '<td>' + (e.webhook_latency_ms || '—') + '</td>' +
-      '<td>' + esc(e.extension_version || '') + '</td>';
+      '<td>' + esc(e.extension_version || '') + '</td>' +
+      '<td>' + (hasMetadata ? '<button class="btn-detail" data-event-idx="' + (start + idx) + '">Pokaż</button>' : '—') + '</td>';
     tbody.appendChild(tr);
+  });
+
+  // Bind detail buttons
+  tbody.querySelectorAll('.btn-detail').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var eventIdx = parseInt(this.dataset.eventIdx, 10);
+      showEventDetailModal(allEvents[eventIdx]);
+    });
   });
 
   var totalPages = Math.ceil(events.length / feedPageSize) || 1;
@@ -774,3 +794,57 @@ function esc(str) {
   div.textContent = str;
   return div.innerHTML;
 }
+
+// ============================================================
+// MODAL SZCZEGÓŁÓW ZDARZENIA
+// ============================================================
+
+function showEventDetailModal(event) {
+  var modal = document.getElementById('event-detail-modal');
+  var meta = event.metadata || {};
+
+  // Tytuł
+  var dateStr = new Date(event.created_at).toLocaleString('pl-PL');
+  var toolStr = event.tool_name || event.tool_id || '';
+  document.getElementById('modal-title').textContent = toolStr + ' — ' + dateStr;
+
+  // Request
+  var reqEl = document.getElementById('modal-request');
+  if (meta.request_payload && Object.keys(meta.request_payload).length > 0) {
+    reqEl.textContent = JSON.stringify(meta.request_payload, null, 2);
+  } else {
+    reqEl.textContent = 'Brak danych (zdarzenie bez payloadu)';
+  }
+
+  // Response
+  var respEl = document.getElementById('modal-response');
+  if (meta.response_payload && Object.keys(meta.response_payload).length > 0) {
+    respEl.textContent = JSON.stringify(meta.response_payload, null, 2);
+  } else {
+    respEl.textContent = 'Brak danych';
+  }
+
+  // Error
+  var errSection = document.getElementById('modal-error-section');
+  var errEl = document.getElementById('modal-error');
+  if (meta.error_message) {
+    errSection.style.display = 'block';
+    errEl.textContent = meta.error_message;
+  } else {
+    errSection.style.display = 'none';
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeEventDetailModal() {
+  document.getElementById('event-detail-modal').classList.add('hidden');
+}
+
+// Bind modal close (after DOM ready)
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('btn-close-modal').addEventListener('click', closeEventDetailModal);
+  document.getElementById('event-detail-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeEventDetailModal();
+  });
+});
